@@ -3,6 +3,16 @@
 #include<Wire.h>
 #include "MAX30105.h"
 #include "heartRate.h"
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include <BLE2902.h>
+
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 
 MAX30105 particleSensor;
@@ -30,6 +40,8 @@ const unsigned long debounceDelay = 300; // Debounce delay in milliseconds
 
 float accMagnitudePrev = 0;
 
+BLECharacteristic *pStepDataCharacteristic;
+
 void setup() {
   Wire.begin();
   Serial.begin(115200);
@@ -51,6 +63,30 @@ void setup() {
   particleSensor.setup(); //Configure sensor with default settings
   particleSensor.setPulseAmplitudeRed(0x0A); //Turn Red LED to low to indicate sensor is running
   particleSensor.setPulseAmplitudeGreen(0); //Turn off Green LED
+
+  BLEDevice::init("Smartband ESP32");
+  BLEServer *pServer = BLEDevice::createServer();
+  
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  
+  // Criando uma característica para os dados de passos
+  pStepDataCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ | 
+      BLECharacteristic::PROPERTY_NOTIFY  // Permitindo leitura e notificação
+  );
+  
+  // Adicionando o descritor BLE2902 para permitir notificações
+  pStepDataCharacteristic->addDescriptor(new BLE2902());
+
+  pService->start();
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  Serial.println("BLE device is ready to be connected");
 }
 
 void loop() {
@@ -83,6 +119,11 @@ void display(){
   Serial.print(beatsPerMinute);
   Serial.print(", Avg BPM=");
   Serial.println(beatAvg);
+  // Create a string containing the step count data
+  String dados = "Passos: " + String(stepCount) + ", FC: " + String(beatAvg);
+   // Update the characteristic value
+  pStepDataCharacteristic->setValue(dados.c_str());
+  pStepDataCharacteristic->notify();
 }
 
 
