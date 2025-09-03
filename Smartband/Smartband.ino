@@ -25,7 +25,7 @@ int beatAvg;
 long irValue = 0;
 
 //Endereco I2C do MPU6050
-const int MPU=0x68;  
+const int MPU=0x69;  
 int16_t accelX, accelY, accelZ;
 
 const float threshold = 1.0; // Adjust this threshold for step detection sensitivity
